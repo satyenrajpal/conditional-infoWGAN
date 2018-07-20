@@ -294,7 +294,6 @@ class Solver(object):
 
             # Compute loss with real images.
             latent = self.FE(x_real)
-            print(latent.size())
             assert latent.size(2) == latent.size(3) == 2
             out_src,out_cls = self.D(latent)
             d_loss_real = - torch.mean(out_src)
