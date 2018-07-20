@@ -31,7 +31,6 @@ class Solver(object):
 
         # Model configurations.
         self.c_dim = config.c_dim # Should be 8 for RaFD
-        # self.con_dim=config.con_dim
         self.image_size = config.image_size
         self.g_conv_dim = config.g_conv_dim
         self.d_conv_dim = config.d_conv_dim
@@ -80,10 +79,8 @@ class Solver(object):
         """Create a generator and a discriminator."""
         if self.dataset in ['CelebA', 'RaFD','MNIST']:
             self.G  = Generator(self.g_conv_dim, self.c_dim,self.image_size,self.op_channels)
-            # self.FE = FE(self.image_size,self.d_conv_dim, self.op_channels)
             self.D  = Discriminator(self.image_size, self.d_conv_dim, self.op_channels, self.c_dim)
-            # self.Q  = Q(self.image_size,self.d_conv_dim,self.con_dim) 
-
+            
         elif self.dataset in ['Both']:
             self.G = Generator(self.g_conv_dim, self.c_dim+self.c2_dim+2, self.g_repeat_num)   # 2 for mask vector.
             self.D = Discriminator(self.image_size, self.d_conv_dim, self.c_dim+self.c2_dim, self.d_repeat_num)
@@ -94,9 +91,7 @@ class Solver(object):
         # self.print_network(self.D, 'D')
         self.G.to(self.device)
         self.D.to(self.device)
-        # self.FE.to(self.device)
-        # self.Q.to(self.device)
-
+        
     def print_network(self, model, name):
         """Print out the network information."""
         num_params = 0
@@ -111,14 +106,10 @@ class Solver(object):
         print('Loading the trained models from step {}...'.format(resume_iters))
         G_path = os.path.join(self.model_save_dir, '{}-G.ckpt'.format(resume_iters))
         D_path = os.path.join(self.model_save_dir, '{}-D.ckpt'.format(resume_iters))
-        # FE_path = os.path.join(self.model_save_dir, '{}-FE.ckpt'.format(resume_iters))
-        # Q_path = os.path.join(self.model_save_dir, '{}-Q.ckpt'.format(resume_iters))
         
         self.D.load_state_dict(torch.load(D_path, map_location=lambda storage, loc: storage))
         self.G.load_state_dict(torch.load(G_path, map_location=lambda storage, loc: storage))
-        # self.FE.load_state_dict(torch.load(FE_path,map_location=lambda storage, loc: storage))
-        # self.Q.load_state_dict(torch.load(Q_path,map_location=lambda storage, loc: storage))
-
+        
     def build_tensorboard(self):
         """Build a tensorboard logger."""
         from logger import Logger
@@ -240,22 +231,22 @@ class Solver(object):
                 x_real, label_org = next(data_iter)
 
             # Generate target domain labels randomly.
-            rand_idx = torch.randperm(label_org.size(0))
-            label_trg = label_org[rand_idx]
+            # rand_idx = torch.randperm(label_org.size(0))
+            # label_trg = label_org[rand_idx]
 
             if self.dataset == 'CelebA':
                 c_org = label_org.clone()
-                c_trg = label_trg.clone()
+                # c_trg = label_trg.clone()
             elif self.dataset == 'RaFD' or self.dataset == 'MNIST':
                 c_org = self.label2onehot(label_org, self.c_dim)
-                c_trg = self.label2onehot(label_trg, self.c_dim)
+                # c_trg = self.label2onehot(label_trg, self.c_dim)
 
             #Add uniform distribution
             c_org  = c_org.to(self.device)             # Original domain labels.
-            c_trg  = c_trg.to(self.device)             # Target domain labels.
+            # c_trg  = c_trg.to(self.device)             # Target domain labels.
             x_real = x_real.to(self.device)           # Input images.
             label_org = label_org.to(self.device)     # Labels for computing classification loss.
-            label_trg = label_trg.to(self.device)     # Labels for computing classification loss.
+            # label_trg = label_trg.to(self.device)     # Labels for computing classification loss.
             
             # =================================================================================== #
             #                             2. Train the discriminator                              #
@@ -269,7 +260,7 @@ class Solver(object):
             d_loss_cls = self.classification_loss(out_cls, label_org, self.dataset)
 
             # Compute loss with fake images.
-            x_fake = self.G(c_trg)
+            x_fake = self.G(c_org)
             out_src, out_cls = self.D(x_fake.detach())
             d_loss_fake = torch.mean(out_src)
 
@@ -298,13 +289,13 @@ class Solver(object):
             
             if (i+1) % self.n_critic == 0:
                 # To-target domain.
-                x_fake = self.G(c_trg)
+                x_fake = self.G(c_org)
                 out_src, out_cls = self.D(x_fake)
                 # Generator loss (Maximise D output)
                 g_loss_fake = - torch.mean(out_src)
             
                 # Classification loss - (minimize classification loss)
-                g_loss_cls = self.classification_loss(out_cls, label_trg, self.dataset)
+                g_loss_cls = self.classification_loss(out_cls, label_org, self.dataset)
                 
                 # Backward and optimize.
                 g_loss = g_loss_fake + self.lambda_cls * g_loss_cls
