@@ -51,8 +51,9 @@ def main(config):
     if config.dataset == 'MNIST':
         transform_ = [transforms.Resize(config.image_size), transforms.ToTensor()]
         transform_ = transforms.Compose(transform_)
+        
         dataset = dset.MNIST('./dataset', transform=transform_,download=True)
-        mnist_loader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=4)
+        mnist_loader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers)
 
     # Solver for training and testing StarGAN.
     solver = Solver(rafd_loader, mnist_loader, config)

@@ -302,10 +302,10 @@ class Solver(object):
                 out_src, out_cls = self.D(x_fake)
                 # Generator loss (Maximise D output)
                 g_loss_fake = - torch.mean(out_src)
-                
+            
                 # Classification loss - (minimize classification loss)
                 g_loss_cls = self.classification_loss(out_cls, label_trg, self.dataset)
-
+                
                 # Backward and optimize.
                 g_loss = g_loss_fake + self.lambda_cls * g_loss_cls
                 self.reset_grad()
