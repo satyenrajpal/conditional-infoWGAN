@@ -25,20 +25,17 @@ class Solver(object):
         """Initialize configurations."""
 
         # Data loader.
-        # self.celeba_loader = celeba_loader
         self.rafd_loader = rafd_loader
         self.mnist_loader = mnist_loader
         self.op_channels = 3 if config.dataset!='MNIST' else 1
 
         # Model configurations.
-        self.c_dim = config.c_dim # Should be 8
-        # self.c2_dim = config.c2_dim
+        self.c_dim = config.c_dim # Should be 8 for RaFD
         self.con_dim=config.con_dim
         self.image_size = config.image_size
         self.g_conv_dim = config.g_conv_dim
         self.d_conv_dim = config.d_conv_dim
         self.lambda_cls = config.lambda_cls
-        # self.lambda_rec = config.lambda_rec
         self.lambda_gp = config.lambda_gp
         self.lambda_MI = config.lambda_MI
 
@@ -116,17 +113,7 @@ class Solver(object):
         D_path = os.path.join(self.model_save_dir, '{}-D.ckpt'.format(resume_iters))
         FE_path = os.path.join(self.model_save_dir, '{}-FE.ckpt'.format(resume_iters))
         Q_path = os.path.join(self.model_save_dir, '{}-Q.ckpt'.format(resume_iters))
-        # G=torch.load(G_path, map_location=lambda storage, loc: storage)
-
-        # new=list(G.items())
-        # G_state_dict=self.G.state_dict()
-        # count=0
-        # for key,value in G_state_dict.items():
-        #     _,weights=new[count]
-        #     G_state_dict[key]=weights
-        #     count+=1
-        # self.G.load_state_dict(G_state_dict)
-
+        `
         self.D.load_state_dict(torch.load(D_path, map_location=lambda storage, loc: storage))
         self.G.load_state_dict(torch.load(G_path, map_location=lambda storage, loc: storage))
         self.FE.load_state_dict(torch.load(FE_path,map_location=lambda storage, loc: storage))
@@ -239,7 +226,7 @@ class Solver(object):
         g_lr = self.g_lr
         d_lr = self.d_lr
 
-        gaussianLoss=log_gaussian()
+        gaussianLoss = log_gaussian()
 
         # Start training from scratch or resume training.
         start_iters = 0
@@ -343,9 +330,6 @@ class Solver(object):
 
                 # Optimize Q
                 q_mu, q_var = self.Q(fake_latent)
-                # print("Noise: ", type(noise))
-                # print("Mu, ", type(q_mu))
-                # print("Var, ", type(q_var))
                 MI_loss  = gaussianLoss(noise,q_mu,q_var)
                 
                 # Backward and optimize.
