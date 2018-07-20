@@ -1,4 +1,4 @@
-from model import Generator,Discriminator,FE,Q
+from model import Generator,Discriminator
 from torch.autograd import Variable
 from torchvision.utils import save_image
 import torch
@@ -31,7 +31,7 @@ class Solver(object):
 
         # Model configurations.
         self.c_dim = config.c_dim # Should be 8 for RaFD
-        self.con_dim=config.con_dim
+        # self.con_dim=config.con_dim
         self.image_size = config.image_size
         self.g_conv_dim = config.g_conv_dim
         self.d_conv_dim = config.d_conv_dim
@@ -79,23 +79,23 @@ class Solver(object):
     def build_model(self):
         """Create a generator and a discriminator."""
         if self.dataset in ['CelebA', 'RaFD','MNIST']:
-            self.G  = Generator(self.g_conv_dim, self.c_dim+self.con_dim,self.image_size,self.op_channels)
-            self.FE = FE(self.image_size,self.d_conv_dim, self.op_channels)
-            self.D  = Discriminator(self.image_size, self.d_conv_dim, self.c_dim)
-            self.Q  = Q(self.image_size,self.d_conv_dim,self.con_dim) 
+            self.G  = Generator(self.g_conv_dim, self.c_dim,self.image_size,self.op_channels)
+            # self.FE = FE(self.image_size,self.d_conv_dim, self.op_channels)
+            self.D  = Discriminator(self.image_size, self.d_conv_dim, self.op_channels, self.c_dim)
+            # self.Q  = Q(self.image_size,self.d_conv_dim,self.con_dim) 
 
         elif self.dataset in ['Both']:
             self.G = Generator(self.g_conv_dim, self.c_dim+self.c2_dim+2, self.g_repeat_num)   # 2 for mask vector.
             self.D = Discriminator(self.image_size, self.d_conv_dim, self.c_dim+self.c2_dim, self.d_repeat_num)
 
-        self.g_optimizer = torch.optim.Adam([{'params' : self.G.parameters()}, {'params' : self.Q.parameters() }], self.g_lr, [self.beta1, self.beta2])
-        self.d_optimizer = torch.optim.Adam([{'params' : self.D.parameters()}, {'params' : self.FE.parameters()}], self.d_lr, [self.beta1, self.beta2])
+        self.g_optimizer = torch.optim.Adam(self.G.parameters(), self.g_lr, [self.beta1, self.beta2])
+        self.d_optimizer = torch.optim.Adam(self.D.parameters(), self.d_lr, [self.beta1, self.beta2])
         # self.print_network(self.G, 'G')
         # self.print_network(self.D, 'D')
         self.G.to(self.device)
         self.D.to(self.device)
-        self.FE.to(self.device)
-        self.Q.to(self.device)
+        # self.FE.to(self.device)
+        # self.Q.to(self.device)
 
     def print_network(self, model, name):
         """Print out the network information."""
@@ -111,13 +111,13 @@ class Solver(object):
         print('Loading the trained models from step {}...'.format(resume_iters))
         G_path = os.path.join(self.model_save_dir, '{}-G.ckpt'.format(resume_iters))
         D_path = os.path.join(self.model_save_dir, '{}-D.ckpt'.format(resume_iters))
-        FE_path = os.path.join(self.model_save_dir, '{}-FE.ckpt'.format(resume_iters))
-        Q_path = os.path.join(self.model_save_dir, '{}-Q.ckpt'.format(resume_iters))
-        `
+        # FE_path = os.path.join(self.model_save_dir, '{}-FE.ckpt'.format(resume_iters))
+        # Q_path = os.path.join(self.model_save_dir, '{}-Q.ckpt'.format(resume_iters))
+        
         self.D.load_state_dict(torch.load(D_path, map_location=lambda storage, loc: storage))
         self.G.load_state_dict(torch.load(G_path, map_location=lambda storage, loc: storage))
-        self.FE.load_state_dict(torch.load(FE_path,map_location=lambda storage, loc: storage))
-        self.Q.load_state_dict(torch.load(Q_path,map_location=lambda storage, loc: storage))
+        # self.FE.load_state_dict(torch.load(FE_path,map_location=lambda storage, loc: storage))
+        # self.Q.load_state_dict(torch.load(Q_path,map_location=lambda storage, loc: storage))
 
     def build_tensorboard(self):
         """Build a tensorboard logger."""
@@ -162,7 +162,7 @@ class Solver(object):
         out[np.arange(batch_size), labels.long()] = 1
         return out
 
-    def create_labels(self, c_dim=5, dataset='CelebA', selected_attrs=None,con_dim=2):
+    def create_labels(self, c_dim=5, dataset='CelebA', selected_attrs=None):
         """Generate target domain labels for debugging and testing."""
         # Get hair color indices.
         if dataset == 'CelebA':
@@ -170,35 +170,24 @@ class Solver(object):
             for i, attr_name in enumerate(selected_attrs):
                 if attr_name in ['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Gray_Hair']:
                     hair_color_indices.append(i)
-        num_p = 8
-        p = np.linspace(-1,1,num_p)
-        con_c_all = []
-        for i in range(con_dim):
-            zero = np.zeros((num_p,con_dim))
-            zero[:,i] = p
-            con_c_all.append(zero)
-
+        num_p = 10
         c_trg_list = []
         
-        for con_c in con_c_all:
-            con_c_T = torch.FloatTensor(torch.from_numpy(con_c).float())
-            for i in range(c_dim):
-                if dataset == 'CelebA':
-                    c_trg = c_org.clone()
-                    if i in hair_color_indices:  # Set one hair color to 1 and the rest to 0.
-                        c_trg[:, i] = 1
-                        for j in hair_color_indices:
-                            if j != i:
-                                c_trg[:, j] = 0
-                    else:
-                        c_trg[:, i] = (c_trg[:, i] == 0)  # Reverse attribute value.
-                    
-                elif dataset == 'RaFD' or dataset=='MNIST':
-                    c_trg = self.label2onehot(torch.ones(num_p)*i, c_dim)
+        for i in range(c_dim):
+            if dataset == 'CelebA':
+                c_trg = c_org.clone()
+                if i in hair_color_indices:  # Set one hair color to 1 and the rest to 0.
+                    c_trg[:, i] = 1
+                    for j in hair_color_indices:
+                        if j != i:
+                            c_trg[:, j] = 0
+                else:
+                    c_trg[:, i] = (c_trg[:, i] == 0)  # Reverse attribute value.
                 
-                #Add noise
-                c_trg = torch.cat([c_trg, con_c_T], dim=1)
-                c_trg_list.append(c_trg.to(self.device))
+            elif dataset == 'RaFD' or dataset=='MNIST':
+                c_trg = self.label2onehot(torch.ones(num_p)*i, c_dim)
+            #Add noise
+            c_trg_list.append(c_trg.to(self.device))
 
         return c_trg_list
 
@@ -220,20 +209,19 @@ class Solver(object):
             data_loader = self.mnist_loader
 
         # Fetch fixed inputs for debugging.
-        c_fixed_list = self.create_labels(self.c_dim, self.dataset, self.selected_attrs, self.con_dim)
+        c_fixed_list = self.create_labels(self.c_dim, self.dataset, self.selected_attrs)
         
         # Learning rate cache for decaying.
         g_lr = self.g_lr
         d_lr = self.d_lr
 
-        gaussianLoss = log_gaussian()
+        data_iter = iter(data_loader)
 
         # Start training from scratch or resume training.
         start_iters = 0
         if self.resume_iters:
             start_iters = self.resume_iters
             self.restore_model(self.resume_iters)
-
 
         # Start training.
         print('Start training...')
@@ -251,8 +239,6 @@ class Solver(object):
                 data_iter = iter(data_loader)
                 x_real, label_org = next(data_iter)
 
-            noise = torch.FloatTensor(x_real.size(0),self.con_dim).requires_grad_(True).to(self.device)
-
             # Generate target domain labels randomly.
             rand_idx = torch.randperm(label_org.size(0))
             label_trg = label_org[rand_idx]
@@ -265,12 +251,8 @@ class Solver(object):
                 c_trg = self.label2onehot(label_trg, self.c_dim)
 
             #Add uniform distribution
-            noise.data.uniform_(-1,1)
             c_org  = c_org.to(self.device)             # Original domain labels.
             c_trg  = c_trg.to(self.device)             # Target domain labels.
-            c_org  = torch.cat([c_org,noise],dim=1)
-            c_trg  = torch.cat([c_trg,noise],dim=1)
-
             x_real = x_real.to(self.device)           # Input images.
             label_org = label_org.to(self.device)     # Labels for computing classification loss.
             label_trg = label_trg.to(self.device)     # Labels for computing classification loss.
@@ -280,9 +262,7 @@ class Solver(object):
             # =================================================================================== #
 
             # Compute loss with real images.
-            latent = self.FE(x_real)
-            assert latent.size(2) == latent.size(3) == 2
-            out_src,out_cls = self.D(latent)
+            out_src, out_cls = self.D(x_real)
             d_loss_real = - torch.mean(out_src)
 
             # Classification Loss wrt real labels
@@ -290,14 +270,13 @@ class Solver(object):
 
             # Compute loss with fake images.
             x_fake = self.G(c_trg)
-            fake_latent=self.FE(x_fake.detach())
-            out_src, out_cls = self.D(fake_latent)
+            out_src, out_cls = self.D(x_fake.detach())
             d_loss_fake = torch.mean(out_src)
 
             # Compute loss for gradient penalty.
             alpha = torch.rand(x_real.size(0), 1, 1, 1).to(self.device)
             x_hat = (alpha * x_real.data + (1 - alpha) * x_fake.data).requires_grad_(True)
-            out_src, _ = self.D(self.FE(x_hat))
+            out_src, _ = self.D(x_hat)
             d_loss_gp = self.gradient_penalty(out_src, x_hat)
 
             # Backward and optimize.
@@ -320,20 +299,15 @@ class Solver(object):
             if (i+1) % self.n_critic == 0:
                 # To-target domain.
                 x_fake = self.G(c_trg)
-                fake_latent = self.FE(x_fake)
-                out_src, out_cls = self.D(fake_latent)
+                out_src, out_cls = self.D(x_fake)
                 # Generator loss (Maximise D output)
                 g_loss_fake = - torch.mean(out_src)
                 
                 # Classification loss - (minimize classification loss)
                 g_loss_cls = self.classification_loss(out_cls, label_trg, self.dataset)
 
-                # Optimize Q
-                q_mu, q_var = self.Q(fake_latent)
-                MI_loss  = gaussianLoss(noise,q_mu,q_var)
-                
                 # Backward and optimize.
-                g_loss = g_loss_fake + self.lambda_cls * g_loss_cls + self.lambda_MI*MI_loss
+                g_loss = g_loss_fake + self.lambda_cls * g_loss_cls
                 self.reset_grad()
                 g_loss.backward()
                 self.g_optimizer.step()
@@ -341,8 +315,7 @@ class Solver(object):
                 # Logging.
                 loss['G/loss_fake'] = g_loss_fake.item()
                 loss['G/loss_cls'] = g_loss_cls.item()
-                loss['MI Loss'] = MI_loss.item()
-
+                
             # =================================================================================== #
             #                                 4. Miscellaneous                                    #
             # =================================================================================== #
@@ -378,12 +351,8 @@ class Solver(object):
             if (i+1) % self.model_save_step == 0:
                 G_path = os.path.join(self.model_save_dir, '{}-G.ckpt'.format(i+1))
                 D_path = os.path.join(self.model_save_dir, '{}-D.ckpt'.format(i+1))
-                FE_path = os.path.join(self.model_save_dir, '{}-FE.ckpt'.format(i+1))
-                Q_path = os.path.join(self.model_save_dir, '{}-Q.ckpt'.format(i+1))
                 torch.save(self.G.state_dict(), G_path)
                 torch.save(self.D.state_dict(), D_path)
-                torch.save(self.FE.state_dict(), FE_path)
-                torch.save(self.Q.state_dict(), Q_path)
                 print('Saved model checkpoints into {}...'.format(self.model_save_dir))
 
             # Decay learning rates.

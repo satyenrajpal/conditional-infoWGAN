@@ -47,10 +47,10 @@ class Generator(nn.Module):
         x = self.upsample(c_h)
         return x
         
-class FE(nn.Module):
+class Discriminator(nn.Module):
     """Intermediate layer to obtain latent space network with PatchGAN."""
-    def __init__(self, image_size=256, conv_dim=64, inp_channels=3):
-        super(FE, self).__init__()
+    def __init__(self, image_size=256, conv_dim=64, inp_channels=3,c_dim=5):
+        super(Discriminator, self).__init__()
         layers = []
         layers.append(nn.Conv2d(inp_channels, conv_dim, kernel_size=4, stride=2, padding=1))
         layers.append(nn.LeakyReLU(0.01))
@@ -63,51 +63,57 @@ class FE(nn.Module):
 
         self.main = nn.Sequential(*layers)
         
-    def forward(self, x):
-        return self.main(x)
-
-class Discriminator(nn.Module):
-    """ Outputs attributes and real/fake"""
-    def __init__(self, image_size=256, conv_dim=64, c_dim=5):
-        super(Discriminator,self).__init__()
-        
-        curr_dim=conv_dim
-        for _ in range(1,int(math.log2(image_size)-1)):
-            curr_dim = curr_dim*2
-        
-        kernel_size=image_size//np.power(2,7)
-        
         self.real_conv = nn.Conv2d(curr_dim, 1, kernel_size=3, stride=1, padding=1, bias=False)
         self.cls_conv  = nn.Conv2d(curr_dim, c_dim, kernel_size=2, stride=1, bias=False)
 
-    def forward(self,x):
-        out_src = self.real_conv(x)
-        out_cls = self.cls_conv(x)
-        return out_src,out_cls.view(out_cls.size(0),out_cls.size(1))
+    def forward(self, x):
+        h = self.main(x)
+        out_src = self.real_conv(h)
+        out_cls = self.cls_conv(h)
+        return out_src, out_cls.view(out_cls.size(0), out_cls.size(1))
 
-class Q(nn.Module):
-    """ Outputs logits and stats for G(x,c)"""
-    def __init__(self,image_size=256,conv_dim=64,con_dim=2):
-        super(Q,self).__init__()
-
-        curr_dim=conv_dim
-        for _ in range(1,int(math.log2(image_size)-1)):
-            curr_dim=curr_dim*2
-
-        # Remove this and see!?
-        self.conv=nn.Sequential(nn.Conv2d(curr_dim, 128,  kernel_size=1,bias=False),
-                                nn.LeakyReLU(0.01,inplace=True),
-                                nn.Conv2d(128,    64, kernel_size=1,bias=False),
-                                nn.LeakyReLU(0.01,inplace=True))
-
-        self.conv_mu =nn.Conv2d(curr_dim,con_dim,kernel_size=2,stride=1,padding=0)
-        self.conv_var=nn.Conv2d(curr_dim,con_dim,kernel_size=2,stride=1,padding=0)
-
-    def forward(self,h):
-        # out=self.conv(h)
+# class Discriminator(nn.Module):
+#     """ Outputs attributes and real/fake"""
+#     def __init__(self, image_size=256, conv_dim=64, c_dim=5):
+#         super(Discriminator,self).__init__()
         
-        mu_out=self.conv_mu(h).squeeze()
-        var_out=self.conv_var(h).squeeze().exp()
+#         curr_dim=conv_dim
+#         for _ in range(1,int(math.log2(image_size)-1)):
+#             curr_dim = curr_dim*2
         
-        return mu_out,var_out
+#         kernel_size=image_size//np.power(2,7)
+        
+#         self.real_conv = nn.Conv2d(curr_dim, 1, kernel_size=3, stride=1, padding=1, bias=False)
+#         self.cls_conv  = nn.Conv2d(curr_dim, c_dim, kernel_size=2, stride=1, bias=False)
+
+#     def forward(self,x):
+#         out_src = self.real_conv(x)
+#         out_cls = self.cls_conv(x)
+#         return out_src,out_cls.view(out_cls.size(0),out_cls.size(1))
+
+# class Q(nn.Module):
+#     """ Outputs logits and stats for G(x,c)"""
+#     def __init__(self,image_size=256,conv_dim=64,con_dim=2):
+#         super(Q,self).__init__()
+
+#         curr_dim=conv_dim
+#         for _ in range(1,int(math.log2(image_size)-1)):
+#             curr_dim=curr_dim*2
+
+#         # Remove this and see!?
+#         self.conv=nn.Sequential(nn.Conv2d(curr_dim, 128,  kernel_size=1,bias=False),
+#                                 nn.LeakyReLU(0.01,inplace=True),
+#                                 nn.Conv2d(128,    64, kernel_size=1,bias=False),
+#                                 nn.LeakyReLU(0.01,inplace=True))
+
+#         self.conv_mu =nn.Conv2d(curr_dim,con_dim,kernel_size=2,stride=1,padding=0)
+#         self.conv_var=nn.Conv2d(curr_dim,con_dim,kernel_size=2,stride=1,padding=0)
+
+#     def forward(self,h):
+#         # out=self.conv(h)
+        
+#         mu_out=self.conv_mu(h).squeeze()
+#         var_out=self.conv_var(h).squeeze().exp()
+        
+#         return mu_out,var_out
 

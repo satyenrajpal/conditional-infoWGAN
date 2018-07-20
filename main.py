@@ -82,6 +82,7 @@ if __name__ == '__main__':
     # Model configuration.
     parser.add_argument('--c_dim', type=int, default=8, help='dimension of domain labels (1st dataset)')
     # parser.add_argument('--c2_dim', type=int, default=8, help='dimension of domain labels (2nd dataset)')
+    # parser.add_argument('--con_dim', type=int, default=2, help='number of continuous dimensions')
     parser.add_argument('--celeba_crop_size', type=int, default=178, help='crop size for the CelebA dataset')
     parser.add_argument('--rafd_crop_size', type=int, default=650, help='crop size for the RaFD dataset')
     parser.add_argument('--image_size', type=int, default=256, help='image resolution')
@@ -102,7 +103,6 @@ if __name__ == '__main__':
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for Adam optimizer')
     parser.add_argument('--beta2', type=float, default=0.999, help='beta2 for Adam optimizer')
     parser.add_argument('--resume_iters', type=int, default=0, help='resume training from this step')
-    parser.add_argument('--con_dim', type=int, default=2, help='number of continuous dimensions')
     parser.add_argument('--selected_attrs', '--list', nargs='+', help='selected attributes for the CelebA dataset',
                         default=['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Male', 'Young'])
 
@@ -121,11 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--attr_path', type=str, default='../celebA/Anno/list_attr_celeba.txt')
     parser.add_argument('--rafd_image_dir', type=str, default='data/RaFD/train')
     parser.add_argument('--save_dir', type=str, default='stargan')
-    # parser.add_argument('--log_dir', type=str, default='stargan/logs')
-    # parser.add_argument('--sample_dir', type=str, default='stargan/samples')
-    # parser.add_argument('--result_dir', type=str, default='stargan/results')
-
-
+    
     # Step size.
     parser.add_argument('--log_step', type=int, default=10)
     parser.add_argument('--sample_step', type=int, default=1000)
